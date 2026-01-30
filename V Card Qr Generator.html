@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>vCard QR Generator</title>
+
+  <!-- QR Code Styling Library -->
+  <script src="https://cdn.jsdelivr.net/npm/qr-code-styling@1.6.0/lib/qr-code-styling.js"></script>
+  <!-- JSZip for batch generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- jsPDF for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- CSV parsing library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root {
+      --teal: #00b3a4;
+      --dark-blue: #0b1f33;
+      --panel: #081826;
+      --field: #0f2a44;
+      --text: #f4fefe;
+      --muted: #9fded9;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: 'Montserrat', Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--dark-blue), #102a44);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page-wrapper {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .page-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      background: linear-gradient(135deg, rgba(11,31,51,.9), rgba(16,42,68,.9));
+      backdrop-filter: blur(10px);
+      border-bottom: 2px solid var(--teal);
+      padding: 16px 20px;
+      position: relative;
+      z-index: 999;
+    }
+
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-center {
+      text-align: center;
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 6px;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .hamburger span {
+      width: 22px;
+      height: 3px;
+      background: var(--teal);
+      border-radius: 2px;
+      transition: 0.3s;
+      display: block;
+    }
+
+    .hamburger.active span:nth-child(1) {
+      transform: rotate(45deg) translate(8px, 8px);
+    }
+
+    .hamburger.active span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .hamburger.active span:nth-child(3) {
+      transform: rotate(-45deg) translate(7px, -7px);
+    }
+
+    .header-title {
+      margin: 0;
+      font-size: 22px;
+      color: var(--teal);
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+
+    .header-tagline {
+      margin: 4px 0 0 0;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    .nav-container {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+      justify-content: center;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .nav-btn {
+      padding: 6px 10px !important;
+      width: auto !important;
+      font-size: 12px;
+      font-weight: 600;
+      background: transparent !important;
+      color: var(--text) !important;
+      border: none !important;
+      transition: 0.2s;
+      text-decoration: none;
+      display: inline-block;
+      border-radius: 4px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .nav-btn:hover {
+      background: rgba(0,179,164,.15) !important;
+      color: var(--teal) !important;
+    }
+
+    .nav-btn.active {
+      color: var(--teal) !important;
+      border-bottom: 2px solid var(--teal) !important;
+      padding-bottom: 4px !important;
+    }
+
+    .logout-btn {
+      padding: 6px 10px !important;
+      width: auto !important;
+      font-size: 12px;
+      font-weight: 600;
+      background: transparent !important;
+      color: #ff6666 !important;
+      border: none !important;
+      transition: 0.2s;
+      text-decoration: none;
+      display: inline-block;
+      border-radius: 4px;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .logout-btn:hover {
+      background: rgba(204,51,51,.15) !important;
+      color: #ff8888 !important;
+    }
+
+    @media (max-width: 768px) {
+      header {
+        padding: 12px 16px;
+      }
+
+      .header-content {
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      .page-content {
+        margin-top: 8px;
+      }
+
+      .header-center {
+        display: none;
+      }
+
+      .hamburger {
+        display: flex;
+      }
+
+      .header-right {
+        order: 3;
+        width: 100%;
+        gap: 8px;
+      }
+
+      .nav-container {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        max-height: 0;
+        overflow: hidden;
+        flex-direction: column;
+        gap: 4px;
+        transition: max-height 0.3s ease;
+        background: linear-gradient(135deg, rgba(11,31,51,.95), rgba(16,42,68,.95));
+        padding: 0;
+        margin-top: 0;
+        z-index: 1000;
+      }
+
+      .nav-container.active {
+        max-height: 280px;
+        padding: 12px 16px;
+        gap: 4px;
+      }
+
+      .nav-btn {
+        width: 100% !important;
+        text-align: left;
+        padding: 8px 12px !important;
+        font-size: 13px;
+      }
+
+      .header-title {
+        font-size: 18px;
+      }
+
+      .header-tagline {
+        font-size: 10px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      header {
+        padding: 10px 12px;
+      }
+
+      .header-left {
+        gap: 10px;
+      }
+
+      .header-title {
+        font-size: 16px;
+      }
+
+      .header-tagline {
+        font-size: 9px;
+      }
+
+      .header-right {
+        gap: 6px;
+      }
+
+      .nav-btn, .logout-btn {
+        padding: 6px 8px !important;
+        font-size: 11px;
+      }
+
+      .hamburger {
+        padding: 4px;
+        gap: 3px;
+      }
+
+      .hamburger span {
+        width: 18px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .app-header h1 {
+        font-size: 20px;
+      }
+
+      .app-header img {
+        height: 32px;
+      }
+
+      .form-group label {
+        font-size: 11px;
+      }
+
+      input, button, textarea, select {
+        padding: 8px;
+        font-size: 12px;
+      }
+
+      .btn-group {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .btn {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
+      .qr-preview {
+        max-width: 100%;
+      }
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      background: linear-gradient(135deg, rgba(11,31,51,.9), rgba(16,42,68,.9));
+      border-top: 1px solid rgba(0,179,164,.2);
+      padding: 32px 20px;
+      margin-top: 40px;
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 32px;
+      margin-bottom: 24px;
+    }
+
+    .footer-section h4 {
+      margin: 0 0 12px 0;
+      color: var(--teal);
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .footer-section p,
+    .footer-section a {
+      margin: 8px 0;
+      font-size: 12px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: 0.2s;
+      display: block;
+    }
+
+    .footer-section a:hover {
+      color: var(--teal);
+    }
+
+    .footer-bottom {
+      text-align: center;
+      padding-top: 20px;
+      border-top: 1px solid rgba(0,179,164,.1);
+      font-size: 12px;
+      color: rgba(244,254,254,.5);
+    }
+
+    /* App shell */
+    .app {
+      width: 100%;
+      max-width: 1000px;
+      margin: 20px;
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      box-shadow: 0 30px 80px rgba(0,0,0,.45);
+    }
+
+    @media (min-width: 900px) {
+      .app {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        padding: 28px;
+      }
+    }
+
+    /* Header */
+    .app-header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .app-header h1 {
+      margin: 0;
+      color: var(--teal);
+      font-size: 26px;
+      letter-spacing: .5px;
+    }
+
+    .app-header img {
+      height: 44px;
+      object-fit: contain;
+    }
+
+    @media (max-width: 600px) {
+      .app-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+      background: var(--field);
+      color: var(--text);
+      font-size: 16px;
+    }
+
+    input::placeholder {
+      color: #7fbcbc;
+    }
+
+    input:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0,179,164,.2);
+      background: var(--field);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field-with-action {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .remove-btn {
+      background: transparent;
+      color: #ff6b6b;
+      border: 1px solid rgba(255,255,255,.06);
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .small-label { font-size: 11px; color: var(--muted); }
+
+    button {
+      background: var(--teal);
+      color: #022;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(0,179,164,.35);
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .inline-add {
+      margin-top: 6px;
+      background: transparent;
+      color: var(--teal);
+      padding: 0;
+    }
+
+    /* QR Panel */
+    .qr-panel {
+      background: var(--field);
+      border-radius: 14px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      /* Keep QR panel visible when left column scrolls */
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+    }
+
+    .qr-box {
+      background: #fff;
+      padding: 12px;
+      border-radius: 12px;
+    }
+
+    .error-msg {
+      color: #ff6b6b;
+      font-size: 11px;
+      margin-top: 4px;
+      display: none;
+    }
+
+    .actions {
+      width: 100%;
+      display: flex;
+      gap: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .actions {
+        flex-direction: column;
+      }
+      .qr-panel {
+        position: static;
+        max-height: none;
+        overflow: visible;
+        align-self: auto;
+      }
+    }
+
+    /* Customization Panel */
+    .customization-panel {
+      background: var(--field);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .customization-panel h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: var(--teal);
+    }
+
+    .color-picker-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .color-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .color-input-wrapper label {
+      margin: 0;
+      flex: 1;
+      font-size: 12px;
+    }
+
+    .color-input-wrapper input[type="color"] {
+      width: 50px;
+      height: 40px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      padding: 2px;
+    }
+
+    .select-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    select {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      background: var(--panel);
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .slider-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .slider-group label {
+      margin: 0;
+      font-size: 12px;
+      min-width: 80px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--panel);
+      outline: none;
+      
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--teal);
+      cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--teal);
+      cursor: pointer;
+      border: none;
+    }
+
+    .slider-value {
+      font-size: 12px;
+      min-width: 30px;
+    }
+
+    /* History Panel */
+    .history-panel {
+      background: var(--field);
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .history-panel h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: var(--teal);
+    }
+
+    .history-item {
+      background: var(--panel);
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .history-item-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-item-time {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .history-item-btn {
+      background: var(--teal);
+      color: #022;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .history-item-btn:hover {
+      opacity: 0.9;
+    }
+
+    /* Notifications */
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--teal);
+      color: #022;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      animation: slideIn 0.3s ease;
+      z-index: 1000;
+      box-shadow: 0 8px 20px rgba(0,0,0,.3);
+    }
+
+    .notification.error {
+      background: #ff6b6b;
+      color: #fff;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Batch Generation */
+    .batch-section {
+      background: var(--field);
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 16px;
+      border: 1px solid rgba(0,179,164,.2);
+    }
+
+    .batch-section h3 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: var(--teal);
+    }
+
+    .file-input-label {
+      display: block;
+      background: transparent;
+      color: var(--teal);
+      border: 1px dashed var(--teal);
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .file-input-label:hover {
+      background: rgba(0,179,164,.1);
+    }
+
+    .file-size-info {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+      padding: 8px;
+      background: rgba(0,179,164,.05);
+      border-radius: 6px;
+    }
+
+    .direct-link-field {
+      margin-top: 12px;
+    }
+
+    .reset-btn {
+      background: #ff6b6b;
+      margin-top: 12px;
+    }
+
+    .reset-btn:hover:not(:disabled) {
+      box-shadow: 0 8px 20px rgba(255,107,107,.35);
+    }
+
+    /* Footer */
+    footer {
+      margin-top: auto;
+      width: 100%;
+      padding: 14px 0;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(8,24,38,.6);
+      border-top: 1px solid rgba(0,179,164,.15);
+    }
+
+    .nav-container {
+      grid-column: 1 / -1;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .nav-btn {
+      padding: 10px 20px !important;
+      width: auto !important;
+      font-size: 13px;
+      font-weight: 600;
+      background: var(--field) !important;
+      color: var(--text) !important;
+      border: 2px solid var(--field) !important;
+      transition: 0.2s;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--teal) !important;
+      background: rgba(0,179,164,.1) !important;
+    }
+
+    .nav-btn.active {
+      background: var(--teal) !important;
+      color: var(--dark-blue) !important;
+    }
+  </style>
+</head>
+<body>
+
+<div class="page-wrapper">
+  <header>
+    <div class="header-content">
+      <div class="header-left">
+        <button class="hamburger" id="hamburger" onclick="toggleMenu()">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div class="header-center">
+          <h1 class="header-title">🔐 ToolBox</h1>
+          <p class="header-tagline">Secure Tools Suite</p>
+        </div>
+      </div>
+      <div class="nav-container" id="navMenu">
+        <a href="password-tool.html" class="nav-btn">Password</a>
+        <a href="qr_code_scanner.html" class="nav-btn">Scanner</a>
+        <a href="V Card Qr Generator.html" class="nav-btn active">vCard</a>
+        <a href="vectorize.html" class="nav-btn">Vectorize</a>
+        <a href="settings.html" class="nav-btn">Settings</a>
+      </div>
+      <div class="header-right">
+        <button class="logout-btn" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-content">
+    <div class="app">
+      <header class="app-header">
+        <h1>vCard QR Generator</h1>
+        <img src="Asset 1.ico" alt="Logo" />
+      </header>
+
+      <!-- FORM -->
+      <section>
+      <div class="row">
+        <div class="form-group">
+          <label>First Name <span style="color:#ff6b6b;">*</span></label>
+          <input id="firstName" placeholder="First name" required />
+          <span class="error-msg" id="firstName-error"></span>
+        </div>
+        <div class="form-group">
+          <label>Last Name <span style="color:#ff6b6b;">*</span></label>
+          <input id="lastName" placeholder="Last name" required />
+          <span class="error-msg" id="lastName-error"></span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Job Title</label>
+        <input id="title" placeholder="e.g. Managing Director" />
+      </div>
+
+      <div class="form-group">
+        <label>Company</label>
+        <input id="company" placeholder="Company name" />
+      </div>
+
+      <div class="form-group">
+        <label>Phone Numbers</label>
+        <div id="phones">
+          <div class="field-with-action">
+            <input class="phone" placeholder="+2547..." inputmode="tel" aria-label="Phone number" />
+            <button type="button" class="remove-btn" aria-label="Remove phone" title="Remove">−</button>
+          </div>
+        </div>
+        <button class="inline-add" type="button" data-add="phone" aria-label="Add another phone number">+ Add phone</button>
+      </div>
+
+      <div class="form-group">
+        <label>Email Addresses</label>
+        <div id="emails">
+          <div class="field-with-action">
+            <input class="email" placeholder="email@company.com" type="email" aria-label="Email address" />
+            <button type="button" class="remove-btn" aria-label="Remove email" title="Remove">−</button>
+          </div>
+        </div>
+        <button class="inline-add" type="button" data-add="email" aria-label="Add another email address">+ Add email</button>
+      </div>
+
+      <div class="form-group">
+        <label>Website (vCard)</label>
+        <input id="website" placeholder="https://www.example.com" type="url" />
+        <span class="error-msg" id="website-error"></span>
+      </div>
+
+      <div class="form-group">
+        <label>Address</label>
+        <input id="address" placeholder="Office address" />
+      </div>
+
+      <div class="form-group">
+        <label class="small-label">Optional: Upload logo for QR center</label>
+        <input id="logoFile" type="file" accept="image/*" aria-label="Upload logo image" />
+        <span class="error-msg" id="logo-error"></span>
+      </div>
+
+      <div class="form-group direct-link-field">
+        <label>Direct vCard Link (optional - overrides other fields)</label>
+        <input id="directLink" placeholder="Paste vCard text or leave empty" />
+      </div>
+
+      <!-- Customization Options -->
+      <div class="customization-panel">
+        <h3>QR Code Customization</h3>
+        <div class="color-picker-group">
+          <div class="color-input-wrapper">
+            <label for="dotsColor">Dots Color</label>
+            <input type="color" id="dotsColor" value="#000000" />
+          </div>
+          <div class="color-input-wrapper">
+            <label for="bgColor">Background Color</label>
+            <input type="color" id="bgColor" value="#ffffff" />
+          </div>
+        </div>
+        <div class="select-group">
+          <div class="form-group">
+            <label for="dotsType">Dots Style</label>
+            <select id="dotsType">
+              <option value="square">Square</option>
+              <option value="rounded">Rounded</option>
+              <option value="extra-rounded">Extra Rounded</option>
+              <option value="clipped">Clipped</option>
+              <option value="dot">Dot</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cornersType">Corners Style</label>
+            <select id="cornersType">
+              <option value="square">Square</option>
+              <option value="extra-rounded">Rounded</option>
+            </select>
+          </div>
+        </div>
+        <div class="slider-group">
+          <label for="qrSize">QR Size (px)</label>
+          <input type="range" id="qrSize" min="200" max="500" value="300" step="10" />
+          <span class="slider-value" id="qrSizeValue">300</span>
+        </div>
+        <button class="inline-add" type="button" id="resetCustomization" style="margin-top: 10px;">Reset to Defaults</button>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button id="generateBtn">Generate QR Code</button>
+        <button id="clearBtn" type="button">Clear</button>
+        <button id="copyBtn" type="button" disabled aria-label="Copy vCard data to clipboard">Copy Data</button>
+      </div>
+
+      <!-- Batch Generation -->
+      <div class="batch-section">
+        <h3>Batch Generation from CSV</h3>
+        <label class="file-input-label" for="csvFile">
+          📁 Click or drag CSV file here
+        </label>
+        <input id="csvFile" type="file" accept=".csv" style="display:none;" aria-label="Upload CSV file for batch generation" />
+        <div class="file-size-info">CSV format: firstName, lastName, title, company, phone, email, website, address</div>
+        <button id="generateBatchBtn" type="button" disabled style="margin-top: 12px;">Generate All QR Codes (ZIP)</button>
+      </div>
+
+      <!-- History -->
+      <div class="history-panel" id="historyPanel" style="display:none;">
+        <h3>Recent QR Codes</h3>
+        <div id="historyList"></div>
+        <button id="clearHistoryBtn" class="reset-btn">Clear History</button>
+      </div>
+    </section>
+
+    <!-- QR PANEL -->
+    <aside class="qr-panel">
+      <div class="qr-box" id="qr"></div>
+      <div class="file-size-info" id="fileSizeInfo" style="text-align: center; margin: 0; background: transparent; padding: 0; font-size: 11px; display: none;"></div>
+      <div class="actions">
+        <button id="pngBtn" disabled aria-label="Download QR code as PNG">Download PNG</button>
+        <button id="svgBtn" disabled aria-label="Download QR code as SVG">Download SVG</button>
+        <button id="downloadVcardBtn" disabled aria-label="Download vCard file">Download .vcf</button>
+        <button id="downloadPdfBtn" disabled aria-label="Download QR code as PDF">Download PDF</button>
+      </div>
+    </aside>
+
+  </div>
+
+  <footer>software by vince</footer>
+
+  <script>
+    // ===== AUTHENTICATION CHECK =====
+    const AUTH_SESSION_KEY = 'toolbox_auth';
+    const AUTH_STORAGE_KEY = 'toolbox_auth_remember';
+
+    function checkAuth() {
+      const hasSession = sessionStorage.getItem(AUTH_SESSION_KEY);
+      if (hasSession) return true;
+
+      const remembered = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (remembered) {
+        try {
+          const data = JSON.parse(remembered);
+          if (new Date(data.expiry) > new Date()) {
+            sessionStorage.setItem(AUTH_SESSION_KEY, data.sessionId);
+            return true;
+          } else {
+            localStorage.removeItem(AUTH_STORAGE_KEY);
+          }
+        } catch (e) {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        }
+      }
+
+      return false;
+    }
+
+    if (!checkAuth()) {
+      window.location.href = "login.html";
+    }
+
+    // ===== LOGOUT FUNCTION =====
+    function logout() {
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      window.location.href = "login.html";
+    }
+
+    function toggleMenu() {
+      const hamburger = document.getElementById("hamburger");
+      const navMenu = document.getElementById("navMenu");
+      hamburger.classList.toggle("active");
+      navMenu.classList.toggle("active");
+    }
+
+    // Close menu when a link is clicked
+    document.querySelectorAll(".nav-btn").forEach(link => {
+      link.addEventListener("click", () => {
+        document.getElementById("hamburger").classList.remove("active");
+        document.getElementById("navMenu").classList.remove("active");
+      });
+    });
+
+    // Close hamburger menu when clicking outside
+    document.addEventListener("click", (e) => {
+      const hamburger = document.getElementById("hamburger");
+      const navMenu = document.getElementById("navMenu");
+      const header = document.querySelector("header");
+      
+      if (!header.contains(e.target)) {
+        hamburger.classList.remove("active");
+        navMenu.classList.remove("active");
+      }
+    });
+
+    // ============= CONSTANTS & CONFIG =============
+    const CONFIG = {
+      QR_DEFAULT_SIZE: 300,
+      QR_MIN_SIZE: 200,
+      QR_MAX_SIZE: 500,
+      DEBOUNCE_DELAY: 450,
+      STORAGE_KEY: 'vcard_qr_data',
+      HISTORY_KEY: 'vcard_qr_history',
+      MAX_LOGO_SIZE: 5 * 1024 * 1024, // 5MB
+      MAX_HISTORY: 10,
+      PHONE_REGEX: /^[\d\s\-\+\(\)]+$/,
+      EMAIL_REGEX: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      URL_REGEX: /^https?:\/\/[^\s]+$/i
+    };
+
+    // ============= VALIDATION UTILITIES =============
+    const Validators = {
+      isValidEmail(email) {
+        return email === '' || CONFIG.EMAIL_REGEX.test(email);
+      },
+      
+      isValidPhone(phone) {
+        return phone === '' || CONFIG.PHONE_REGEX.test(phone);
+      },
+      
+      isValidUrl(url) {
+        if (url === '') return true;
+        try {
+          new URL(url);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+
+      validateAllInputs() {
+        let isValid = true;
+        const firstName = el('firstName').value.trim();
+        const lastName = el('lastName').value.trim();
+        const website = el('website').value.trim();
+
+        // Required fields
+        if (!firstName) {
+          showError('firstName-error', 'First name is required');
+          isValid = false;
+        } else {
+          clearError('firstName-error');
+        }
+
+        if (!lastName) {
+          showError('lastName-error', 'Last name is required');
+          isValid = false;
+        } else {
+          clearError('lastName-error');
+        }
+
+        // URL validation
+        if (!this.isValidUrl(website)) {
+          showError('website-error', 'Invalid website URL');
+          isValid = false;
+        } else {
+          clearError('website-error');
+        }
+
+        // Email validation
+        [...document.querySelectorAll('.email')].forEach(input => {
+          if (!this.isValidEmail(input.value.trim())) {
+            showNotification('Invalid email format: ' + input.value, 'error');
+            isValid = false;
+          }
+        });
+
+        // Phone validation
+        [...document.querySelectorAll('.phone')].forEach(input => {
+          if (!this.isValidPhone(input.value.trim())) {
+            showNotification('Invalid phone format: ' + input.value, 'error');
+            isValid = false;
+          }
+        });
+
+        return isValid;
+      }
+    };
+
+    // ============= UI HELPERS =============
+    const el = id => document.getElementById(id);
+
+    function showError(elementId, message) {
+      const elem = el(elementId);
+      if (elem) {
+        elem.textContent = message;
+        elem.style.color = '#ff6b6b';
+        elem.style.fontSize = '11px';
+        elem.style.marginTop = '4px';
+        elem.style.display = 'block';
+      }
+    }
+
+    function clearError(elementId) {
+      const elem = el(elementId);
+      if (elem) {
+        elem.textContent = '';
+        elem.style.display = 'none';
+      }
+    }
+
+    function showNotification(message, type = 'success') {
+      const notification = document.createElement('div');
+      notification.className = 'notification' + (type === 'error' ? ' error' : '');
+      notification.textContent = message;
+      document.body.appendChild(notification);
+      setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease forwards';
+        setTimeout(() => notification.remove(), 300);
+      }, 3000);
+    }
+
+    function disableAllButtons(disabled) {
+      ['pngBtn', 'svgBtn', 'copyBtn', 'downloadVcardBtn', 'downloadPdfBtn'].forEach(id => {
+        const btn = el(id);
+        if (btn) btn.disabled = disabled;
+      });
+    }
+
+    // ============= STORAGE & HISTORY =============
+    const Storage = {
+      saveFormData() {
+        const data = {
+          firstName: el('firstName').value,
+          lastName: el('lastName').value,
+          title: el('title').value,
+          company: el('company').value,
+          website: el('website').value,
+          address: el('address').value,
+          directLink: el('directLink').value,
+          phones: [...document.querySelectorAll('.phone')].map(i => i.value),
+          emails: [...document.querySelectorAll('.email')].map(i => i.value),
+          customization: {
+            dotsColor: el('dotsColor').value,
+            bgColor: el('bgColor').value,
+            dotsType: el('dotsType').value,
+            cornersType: el('cornersType').value,
+            qrSize: el('qrSize').value
+          }
+        };
+        localStorage.setItem(CONFIG.STORAGE_KEY, JSON.stringify(data));
+      },
+
+      loadFormData() {
+        const saved = localStorage.getItem(CONFIG.STORAGE_KEY);
+        if (!saved) return;
+        
+        const data = JSON.parse(saved);
+        el('firstName').value = data.firstName || '';
+        el('lastName').value = data.lastName || '';
+        el('title').value = data.title || '';
+        el('company').value = data.company || '';
+        el('website').value = data.website || '';
+        el('address').value = data.address || '';
+        el('directLink').value = data.directLink || '';
+
+        // Restore phones
+        const phonesContainer = el('phones');
+        phonesContainer.innerHTML = '';
+        (data.phones || ['']).forEach(phone => {
+          const wrapper = createFieldWrapper('phone', phone, '+2547...');
+          phonesContainer.appendChild(wrapper);
+        });
+
+        // Restore emails
+        const emailsContainer = el('emails');
+        emailsContainer.innerHTML = '';
+        (data.emails || ['']).forEach(email => {
+          const wrapper = createFieldWrapper('email', email, 'email@company.com');
+          emailsContainer.appendChild(wrapper);
+        });
+
+        // Restore customization
+        if (data.customization) {
+          el('dotsColor').value = data.customization.dotsColor || '#000000';
+          el('bgColor').value = data.customization.bgColor || '#ffffff';
+          el('dotsType').value = data.customization.dotsType || 'square';
+          el('cornersType').value = data.customization.cornersType || 'square';
+          el('qrSize').value = data.customization.qrSize || CONFIG.QR_DEFAULT_SIZE;
+          updateQrSizeDisplay();
+        }
+      },
+
+      addToHistory(firstName, lastName, company) {
+        let history = JSON.parse(localStorage.getItem(CONFIG.HISTORY_KEY) || '[]');
+        history.unshift({
+          id: Date.now(),
+          name: `${firstName} ${lastName}${company ? ' (' + company + ')' : ''}`,
+          timestamp: new Date().toLocaleString(),
+          data: this.getCurrentData()
+        });
+        history = history.slice(0, CONFIG.MAX_HISTORY);
+        localStorage.setItem(CONFIG.HISTORY_KEY, JSON.stringify(history));
+        renderHistory();
+      },
+
+      getHistory() {
+        return JSON.parse(localStorage.getItem(CONFIG.HISTORY_KEY) || '[]');
+      },
+
+      clearHistory() {
+        localStorage.removeItem(CONFIG.HISTORY_KEY);
+        renderHistory();
+      },
+
+      getCurrentData() {
+        return {
+          firstName: el('firstName').value,
+          lastName: el('lastName').value,
+          title: el('title').value,
+          company: el('company').value,
+          website: el('website').value,
+          address: el('address').value,
+          directLink: el('directLink').value,
+          phones: [...document.querySelectorAll('.phone')].map(i => i.value),
+          emails: [...document.querySelectorAll('.email')].map(i => i.value)
+        };
+      },
+
+      restoreHistoryItem(data) {
+        el('firstName').value = data.firstName;
+        el('lastName').value = data.lastName;
+        el('title').value = data.title;
+        el('company').value = data.company;
+        el('website').value = data.website;
+        el('address').value = data.address;
+        el('directLink').value = data.directLink;
+
+        // Restore phones
+        const phonesContainer = el('phones');
+        phonesContainer.innerHTML = '';
+        (data.phones || ['']).forEach(phone => {
+          const wrapper = createFieldWrapper('phone', phone, '+2547...');
+          phonesContainer.appendChild(wrapper);
+        });
+
+        // Restore emails
+        const emailsContainer = el('emails');
+        emailsContainer.innerHTML = '';
+        (data.emails || ['']).forEach(email => {
+          const wrapper = createFieldWrapper('email', email, 'email@company.com');
+          emailsContainer.appendChild(wrapper);
+        });
+
+        scheduleGenerate();
+      }
+    };
+
+    // ============= QR CODE GENERATOR =============
+    let qr = new QRCodeStyling({
+      width: CONFIG.QR_DEFAULT_SIZE,
+      height: CONFIG.QR_DEFAULT_SIZE,
+      type: 'png',
+      dotsOptions: { color: '#000000', type: 'square' },
+      backgroundOptions: { color: '#ffffff' },
+      cornersSquareOptions: { color: '#000000' },
+      cornersDotOptions: { color: '#000000' },
+      imageOptions: { crossOrigin: 'anonymous', hideBackgroundDots: true }
+    });
+
+    let qrAppended = false;
+    let lastData = '';
+    let debounceTimer = null;
+    let currentLogo = null;
+
+    function createFieldWrapper(className, value = '', placeholder = '') {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'field-with-action';
+
+      const input = document.createElement('input');
+      input.className = className;
+      input.placeholder = placeholder;
+      input.value = value;
+      if (className === 'email') input.type = 'email';
+      if (className === 'phone') input.inputMode = 'tel';
+      input.addEventListener('input', scheduleGenerate);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'remove-btn';
+      btn.title = 'Remove';
+      btn.innerText = '−';
+      btn.ariaLabel = `Remove ${className}`;
+
+      wrapper.appendChild(input);
+      wrapper.appendChild(btn);
+      return wrapper;
+    }
+
+    function buildVCard() {
+      const directLink = el('directLink').value.trim();
+      if (directLink) return directLink;
+
+      const firstName = el('firstName').value.trim();
+      const lastName = el('lastName').value.trim();
+      const phones = [...document.querySelectorAll('.phone')].map(i => i.value.trim()).filter(Boolean);
+      const emails = [...document.querySelectorAll('.email')].map(i => i.value.trim()).filter(Boolean);
+
+      let v = `BEGIN:VCARD\nVERSION:3.0\n`;
+      v += `N:${lastName};${firstName};;;\n`;
+      v += `FN:${firstName} ${lastName}\n`;
+      if (el('company').value) v += `ORG:${el('company').value}\n`;
+      if (el('title').value) v += `TITLE:${el('title').value}\n`;
+
+      phones.forEach(p => v += `TEL;TYPE=CELL,VOICE:${p}\n`);
+      emails.forEach(e => v += `EMAIL;TYPE=INTERNET:${e}\n`);
+
+      if (el('website').value) v += `URL:${el('website').value}\n`;
+      if (el('address').value) v += `ADR;TYPE=WORK:;;${el('address').value};;;;\n`;
+
+      v += `END:VCARD`;
+      return v;
+    }
+
+    function updateQrSizeDisplay() {
+      const size = el('qrSize').value;
+      el('qrSizeValue').textContent = size;
+      updateQRSize(parseInt(size));
+    }
+
+    function updateQRSize(size) {
+      qr.update({ width: size, height: size });
+    }
+
+    function updateQRCustomization() {
+      const dotsColor = el('dotsColor').value;
+      const bgColor = el('bgColor').value;
+      const dotsType = el('dotsType').value;
+      const cornersType = el('cornersType').value;
+
+      qr.update({
+        dotsOptions: { color: dotsColor, type: dotsType },
+        backgroundOptions: { color: bgColor },
+        cornersSquareOptions: { color: dotsColor, type: cornersType },
+        cornersDotOptions: { color: dotsColor }
+      });
+    }
+
+    function generateQR() {
+      if (!Validators.validateAllInputs()) return;
+
+      const data = buildVCard();
+      lastData = data;
+      el('qr').innerHTML = '';
+      const updateOpts = { data };
+      if (currentLogo) updateOpts.image = currentLogo;
+      qr.update(updateOpts);
+      if (!qrAppended) { qr.append(el('qr')); qrAppended = true; }
+      disableAllButtons(false);
+      Storage.saveFormData();
+      updateFileSizeInfo();
+    }
+
+    function updateFileSizeInfo() {
+      const pngSize = lastData.length * 2; // rough estimate
+      const svgSize = lastData.length * 1.5;
+      const pdfSize = lastData.length * 3;
+      
+      const info = el('fileSizeInfo');
+      info.textContent = `PNG: ~${(pngSize / 1024).toFixed(1)}KB | SVG: ~${(svgSize / 1024).toFixed(1)}KB | PDF: ~${(pdfSize / 1024).toFixed(1)}KB`;
+      info.style.display = 'block';
+    }
+
+    function scheduleGenerate() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const any = [...document.querySelectorAll('input:not(#csvFile):not(#logoFile)')].some(i => i.value.trim());
+        if (any) generateQR();
+      }, CONFIG.DEBOUNCE_DELAY);
+    }
+
+    function renderHistory() {
+      const history = Storage.getHistory();
+      const historyPanel = el('historyPanel');
+      const historyList = el('historyList');
+
+      if (history.length === 0) {
+        historyPanel.style.display = 'none';
+        return;
+      }
+
+      historyPanel.style.display = 'block';
+      historyList.innerHTML = history.map(item => `
+        <div class="history-item">
+          <div class="history-item-name">${item.name}</div>
+          <div class="history-item-time">${item.timestamp}</div>
+          <button class="history-item-btn" onclick="window.restoreHistory(${item.id})">Load</button>
+        </div>
+      `).join('');
+    }
+
+    window.restoreHistory = (id) => {
+      const history = Storage.getHistory();
+      const item = history.find(h => h.id === id);
+      if (item) {
+        Storage.restoreHistoryItem(item.data);
+        showNotification('History item loaded');
+      }
+    };
+
+    // ============= BATCH GENERATION =============
+    function processBatch(records) {
+      if (!records || records.length === 0) {
+        showNotification('No valid records found in CSV', 'error');
+        return;
+      }
+
+      const zip = new JSZip();
+      const validRecords = [];
+
+      records.forEach((record, idx) => {
+        const firstName = (record.firstName || record['First Name'] || '').trim();
+        const lastName = (record.lastName || record['Last Name'] || '').trim();
+        
+        if (!firstName || !lastName) return;
+
+        const title = record.title || record['Title'] || '';
+        const company = record.company || record['Company'] || '';
+        const phones = (record.phone || record['Phone'] || '').split(';').filter(Boolean);
+        const emails = (record.email || record['Email'] || '').split(';').filter(Boolean);
+        const website = record.website || record['Website'] || '';
+        const address = record.address || record['Address'] || '';
+
+        let vcard = `BEGIN:VCARD\nVERSION:3.0\n`;
+        vcard += `N:${lastName};${firstName};;;\n`;
+        vcard += `FN:${firstName} ${lastName}\n`;
+        if (company) vcard += `ORG:${company}\n`;
+        if (title) vcard += `TITLE:${title}\n`;
+        phones.forEach(p => vcard += `TEL;TYPE=CELL,VOICE:${p}\n`);
+        emails.forEach(e => vcard += `EMAIL;TYPE=INTERNET:${e}\n`);
+        if (website) vcard += `URL:${website}\n`;
+        if (address) vcard += `ADR;TYPE=WORK:;;${address};;;;\n`;
+        vcard += `END:VCARD`;
+
+        const qrBatch = new QRCodeStyling({
+          width: 300,
+          height: 300,
+          type: 'png',
+          data: vcard,
+          dotsOptions: { color: '#000000', type: 'square' },
+          backgroundOptions: { color: '#ffffff' },
+          cornersSquareOptions: { color: '#000000' },
+          cornersDotOptions: { color: '#000000' },
+          imageOptions: { crossOrigin: 'anonymous', hideBackgroundDots: true }
+        });
+
+        qrBatch.getRawData('png').then(blob => {
+          zip.file(`${firstName}_${lastName}.png`, blob);
+        });
+
+        zip.file(`${firstName}_${lastName}.vcf`, vcard);
+        validRecords.push(`${firstName} ${lastName}`);
+      });
+
+      setTimeout(() => {
+        zip.generateAsync({ type: 'blob' }).then(blob => {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'qr_codes_batch.zip';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          showNotification(`Generated ${validRecords.length} QR codes`);
+        });
+      }, 500);
+    }
+
+    // ============= EVENT LISTENERS =============
+    document.addEventListener('click', e => {
+      if (e.target.dataset.add === 'phone') {
+        const wrapper = createFieldWrapper('phone', '', '+2547...');
+        el('phones').appendChild(wrapper);
+        scheduleGenerate();
+      }
+      if (e.target.dataset.add === 'email') {
+        const wrapper = createFieldWrapper('email', '', 'email@company.com');
+        el('emails').appendChild(wrapper);
+        scheduleGenerate();
+      }
+      if (e.target.classList.contains('remove-btn')) {
+        const wrapper = e.target.closest('.field-with-action');
+        if (wrapper) wrapper.remove();
+        scheduleGenerate();
+      }
+    });
+
+    el('generateBtn').onclick = generateQR;
+    el('clearBtn').onclick = () => {
+      document.querySelectorAll('input:not(#csvFile):not(#logoFile)').forEach(i => i.value = '');
+      el('qr').innerHTML = '';
+      qrAppended = false;
+      disableAllButtons(true);
+      el('fileSizeInfo').style.display = 'none';
+      clearAllErrors();
+      Storage.saveFormData();
+    };
+    el('copyBtn').onclick = async () => {
+      await navigator.clipboard.writeText(lastData);
+      showNotification('vCard copied to clipboard');
+    };
+    el('downloadVcardBtn').onclick = () => {
+      const blob = new Blob([lastData], { type: 'text/vcard' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'vcard.vcf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    };
+    el('pngBtn').onclick = () => qr.download({ name: 'vcard-qr', extension: 'png' });
+    el('svgBtn').onclick = () => qr.download({ name: 'vcard-qr', extension: 'svg' });
+
+    el('dotsColor').addEventListener('change', updateQRCustomization);
+    el('bgColor').addEventListener('change', updateQRCustomization);
+    el('dotsType').addEventListener('change', updateQRCustomization);
+    el('cornersType').addEventListener('change', updateQRCustomization);
+    el('qrSize').addEventListener('input', updateQrSizeDisplay);
+
+    el('resetCustomization').onclick = () => {
+      el('dotsColor').value = '#000000';
+      el('bgColor').value = '#ffffff';
+      el('dotsType').value = 'square';
+      el('cornersType').value = 'square';
+      el('qrSize').value = CONFIG.QR_DEFAULT_SIZE;
+      updateQrSizeDisplay();
+      updateQRCustomization();
+      showNotification('Customization reset');
+    };
+
+    el('clearHistoryBtn').onclick = () => {
+      if (confirm('Clear all history?')) {
+        Storage.clearHistory();
+        showNotification('History cleared');
+      }
+    };
+
+    el('logoFile').addEventListener('change', e => {
+      const f = e.target.files && e.target.files[0];
+      if (!f) { currentLogo = null; return; }
+
+      if (f.size > CONFIG.MAX_LOGO_SIZE) {
+        showError('logo-error', 'Logo file too large (max 5MB)');
+        e.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => { 
+        currentLogo = reader.result;
+        clearError('logo-error');
+        scheduleGenerate();
+      };
+      reader.onerror = () => {
+        showError('logo-error', 'Failed to read logo file');
+      };
+      reader.readAsDataURL(f);
+    });
+
+    el('csvFile').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.data.length > 0) {
+            el('generateBatchBtn').disabled = false;
+            showNotification(`${results.data.length} contacts loaded`);
+          }
+        },
+        error: (error) => {
+          showNotification('Error parsing CSV: ' + error.message, 'error');
+        }
+      });
+    });
+
+    el('generateBatchBtn').onclick = () => {
+      const file = el('csvFile').files[0];
+      if (!file) return;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          processBatch(results.data);
+          el('csvFile').value = '';
+          el('generateBatchBtn').disabled = true;
+        }
+      });
+    };
+
+    // Handle drag and drop for CSV
+    el('csvFile').parentElement.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.currentTarget.style.background = 'rgba(0,179,164,.1)';
+    });
+
+    el('csvFile').parentElement.addEventListener('dragleave', e => {
+      e.currentTarget.style.background = '';
+    });
+
+    el('csvFile').parentElement.addEventListener('drop', e => {
+      e.preventDefault();
+      e.currentTarget.style.background = '';
+      const files = e.dataTransfer.files;
+      if (files[0]) {
+        el('csvFile').files = files;
+        el('csvFile').dispatchEvent(new Event('change'));
+      }
+    });
+
+    // PDF generation
+    async function blobToDataURL(blob) {
+      return new Promise(resolve => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.readAsDataURL(blob);
+      });
+    }
+
+    el('downloadPdfBtn').onclick = async () => {
+      try {
+        async function getQrDataUrl() {
+          if (typeof qr.getRawData === 'function') {
+            try {
+              const raw = await qr.getRawData('png');
+              if (raw) return await blobToDataURL(raw);
+            } catch (e) { }
+          }
+          const canvas = el('qr').querySelector('canvas');
+          if (canvas) return canvas.toDataURL('image/png');
+          const img = el('qr').querySelector('img');
+          if (img && img.src) return img.src;
+          const svg = el('qr').querySelector('svg');
+          if (svg) {
+            const xml = new XMLSerializer().serializeToString(svg);
+            const svg64 = btoa(unescape(encodeURIComponent(xml)));
+            const dataUrl = 'data:image/svg+xml;base64,' + svg64;
+            return await new Promise((resolve, reject) => {
+              const image = new Image();
+              image.onload = () => {
+                const c = document.createElement('canvas');
+                c.width = image.width || 600;
+                c.height = image.height || 600;
+                const ctx = c.getContext('2d');
+                ctx.drawImage(image, 0, 0, c.width, c.height);
+                resolve(c.toDataURL('image/png'));
+              };
+              image.onerror = reject;
+              image.src = dataUrl;
+            });
+          }
+          return null;
+        }
+
+        const imgData = await getQrDataUrl();
+        if (!imgData) throw new Error('Could not extract QR image');
+
+        const { jspdf } = window;
+        const doc = new jspdf.jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 20;
+        const maxSize = Math.min(pageWidth - margin * 2, pageHeight - margin * 2);
+        const imgSize = Math.min(maxSize, 170);
+        const x = (pageWidth - imgSize) / 2;
+        const y = (pageHeight - imgSize) / 2;
+
+        doc.addImage(imgData, 'PNG', x, y, imgSize, imgSize);
+        doc.save('vcard.pdf');
+        showNotification('PDF downloaded');
+      } catch (err) {
+        showNotification('Failed to create PDF: ' + (err && err.message ? err.message : err), 'error');
+      }
+    };
+
+    // Input event listeners
+    document.querySelectorAll('input:not(#csvFile):not(#logoFile)').forEach(i => {
+      i.addEventListener('input', scheduleGenerate);
+    });
+
+    function clearAllErrors() {
+      ['firstName-error', 'lastName-error', 'website-error', 'logo-error'].forEach(id => {
+        clearError(id);
+      });
+    }
+
+    // Initialize
+    Storage.loadFormData();
+    renderHistory();
+    disableAllButtons(true);
+  </script>
+
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-content">
+      <div class="footer-section">
+        <h4>Tools</h4>
+        <a href="password-tool.html">🔐 Password Generator</a>
+        <a href="qr_code_scanner.html">📱 QR Scanner</a>
+        <a href="V Card Qr Generator.html">📋 vCard QR</a>
+        <a href="vectorize.html">🖼️ Vectorize</a>
+      </div>
+      <div class="footer-section">
+        <h4>Features</h4>
+        <p>Secure password generation using PBKDF2</p>
+        <p>Instant QR code scanning & creation</p>
+        <p>Batch vCard generation</p>
+      </div>
+      <div class="footer-section">
+        <h4>About</h4>
+        <p>Fast, secure, and completely offline tools for modern productivity.</p>
+        <p>Your data never leaves your browser.</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 ToolBox. All rights reserved. | Made with ❤️</p>
+    </div>
+  </footer>
+</div>
+
+</body>
+</html>

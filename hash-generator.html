@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Password Hasher - ToolBox</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body {
+  font-family: 'Courier New', monospace;
+  background: #0b1f33;
+  color: #f4fefe;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+}
+
+.container {
+  background: #081826;
+  padding: 30px;
+  border-radius: 10px;
+  max-width: 500px;
+  width: 100%;
+  border: 1px solid #00b3a4;
+}
+
+h1 {
+  color: #00b3a4;
+  text-align: center;
+  margin-top: 0;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  background: #0f2a44;
+  color: #f4fefe;
+  border: 1px solid #00b3a4;
+  border-radius: 5px;
+  font-family: monospace;
+  box-sizing: border-box;
+}
+
+textarea {
+  min-height: 100px;
+  resize: vertical;
+  word-break: break-all;
+}
+
+button {
+  width: 100%;
+  padding: 12px;
+  background: #00b3a4;
+  color: #0b1f33;
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
+.info {
+  background: rgba(0,179,164,.1);
+  padding: 15px;
+  border-radius: 5px;
+  margin: 20px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.copy-btn {
+  background: #088;
+  margin-top: 5px;
+  padding: 8px;
+  font-size: 12px;
+}
+
+.copied {
+  background: #0a0;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🔐 Password Hasher</h1>
+  
+  <div>
+    <label>Enter your new password:</label>
+    <input type="password" id="password" placeholder="e.g., Athena.123">
+    <button onclick="togglePassword()">👁️ Show</button>
+  </div>
+
+  <button onclick="generateHash()">🔄 Generate Hash</button>
+
+  <div>
+    <label>Hash (copy this to login.html):</label>
+    <textarea id="hash" readonly></textarea>
+    <button class="copy-btn" onclick="copyHash()">📋 Copy Hash</button>
+  </div>
+
+  <div class="info">
+    <strong>📝 How to use:</strong><br>
+    1. Enter your password above<br>
+    2. Click "Generate Hash"<br>
+    3. Copy the hash that appears<br>
+    4. Replace CORRECT_PASSWORD_HASH in login.html with this value<br>
+    5. Delete this file for security
+  </div>
+</div>
+
+<script>
+const AUTH_CONFIG = {
+  ITERATIONS: 150000,
+  KEY_LENGTH: 256
+};
+
+const $ = id => document.getElementById(id);
+
+async function hashPassword(password) {
+  const enc = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+
+  const salt = enc.encode("TOOLBOX_LOGIN_SALT");
+
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: AUTH_CONFIG.ITERATIONS, hash: "SHA-256" },
+    baseKey,
+    AUTH_CONFIG.KEY_LENGTH
+  );
+
+  return Array.from(new Uint8Array(bits))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function generateHash() {
+  const password = $("password").value;
+  
+  if (!password) {
+    alert("Please enter a password");
+    return;
+  }
+
+  const hash = await hashPassword(password);
+  $("hash").value = hash;
+}
+
+function togglePassword() {
+  const input = $("password");
+  input.type = input.type === "password" ? "text" : "password";
+}
+
+function copyHash() {
+  const hash = $("hash").value;
+  if (!hash) {
+    alert("Generate a hash first");
+    return;
+  }
+
+  navigator.clipboard.writeText(hash).then(() => {
+    const btn = event.target;
+    btn.textContent = "✓ Copied!";
+    setTimeout(() => {
+      btn.textContent = "📋 Copy Hash";
+    }, 2000);
+  });
+}
+
+$("password").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") generateHash();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QR Code Scanner</title>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+/* =======================
+   THEME
+======================= */
+:root {
+  --teal: #00b3a4;
+  --dark-blue: #0b1f33;
+  --panel: #081826;
+  --field: #0f2a44;
+  --text: #f4fefe;
+  --muted: #9fded9;
+}
+
+/* =======================
+   BASE
+======================= */
+* {
+  box-sizing: border-box;
+  font-family: 'Montserrat', sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--dark-blue), #102a44);
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* =======================
+   LAYOUT
+======================= */
+.app {
+  width: 100%;
+  max-width: 1100px;
+  background: var(--panel);
+  border-radius: 18px;
+  padding: 24px;
+  display: grid;
+  gap: 24px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.45);
+}
+
+@media (min-width: 900px) {
+  .app {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.panel {
+  background: var(--field);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel h2 {
+  margin: 0;
+  color: var(--teal);
+}
+
+/* =======================
+   UPLOAD / DROP
+======================= */
+.drop-zone {
+  flex: 1;
+  border: 2px dashed rgba(159,222,217,.35);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+  transition: .2s;
+}
+
+.drop-zone.dragover {
+  border-color: var(--teal);
+  background: rgba(0,179,164,.08);
+  box-shadow: 0 0 0 2px rgba(0,179,164,.35);
+}
+
+.upload-btn {
+  background: var(--teal);
+  color: #022;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* =======================
+   CAMERA
+======================= */
+#camera {
+  display: none;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* =======================
+   EMPTY STATE
+======================= */
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--muted);
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+/* =======================
+   RESULT
+======================= */
+.result {
+  display: none;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 14px;
+  gap: 10px;
+  animation: fadeUp .35s ease forwards;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.result textarea {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  resize: none;
+  min-height: 80px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn {
+  background: var(--teal);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- IMPORT -->
+  <section class="panel">
+    <h2>Import image</h2>
+
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" hidden accept="image/*" />
+      <div>
+        <button class="upload-btn" type="button">Choose file</button>
+        <div class="small">OR drag & drop / paste image</div>
+      </div>
+    </div>
+
+    <button class="upload-btn" id="cameraToggle">📷 Scan with Camera</button>
+    <div id="camera"></div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="panel">
+    <h2>Results</h2>
+
+    <div class="empty" id="emptyState">
+      <div style="font-size:42px;">📦</div>
+      <strong>Nothing scanned so far!</strong>
+      <span>Scan a code to see results.</span>
+    </div>
+
+    <div class="result" id="resultBox">
+      <textarea id="resultText" readonly></textarea>
+      <div class="actions">
+        <button class="action-btn" id="copyBtn">Copy</button>
+        <button class="action-btn" id="openBtn">Open</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* =======================
+   ELEMENTS
+======================= */
+const UI = {
+  dropZone: document.getElementById('dropZone'),
+  fileInput: document.getElementById('fileInput'),
+  empty: document.getElementById('emptyState'),
+  resultBox: document.getElementById('resultBox'),
+  resultText: document.getElementById('resultText'),
+  copyBtn: document.getElementById('copyBtn'),
+  openBtn: document.getElementById('openBtn'),
+  cameraToggle: document.getElementById('cameraToggle'),
+  camera: document.getElementById('camera')
+};
+
+/* =======================
+   STATE
+======================= */
+let qrCamera = null;
+let cameraActive = false;
+
+/* =======================
+   HELPERS
+======================= */
+const isURL = value => {
+  try { new URL(value); return true; }
+  catch { return false; }
+};
+
+const showResult = data => {
+  UI.empty.style.display = 'none';
+  UI.resultBox.style.display = 'flex';
+  UI.resultText.value = data;
+  UI.openBtn.style.display = isURL(data) ? 'inline-block' : 'none';
+};
+
+const resetCamera = async () => {
+  if (qrCamera && cameraActive) {
+    await qrCamera.stop().catch(()=>{});
+  }
+  cameraActive = false;
+  UI.camera.style.display = 'none';
+  UI.cameraToggle.textContent = '📷 Scan with Camera';
+};
+
+/* =======================
+   IMAGE SCANNING
+======================= */
+const scanImageFile = file => {
+  resetCamera();
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => decodeImage(img);
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+const decodeImage = img => {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const imageData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  const qr = jsQR(imageData.data, canvas.width, canvas.height);
+  qr ? showResult(qr.data) : alert('No QR code detected.');
+};
+
+/* =======================
+   CAMERA SCANNING
+======================= */
+UI.cameraToggle.onclick = async () => {
+  if (cameraActive) return resetCamera();
+
+  UI.camera.style.display = 'block';
+  UI.camera.innerHTML = '';
+  qrCamera = new Html5Qrcode("camera");
+
+  try {
+    await qrCamera.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 240 },
+      text => {
+        showResult(text);
+        resetCamera();
+      }
+    );
+    cameraActive = true;
+    UI.cameraToggle.textContent = '⛔ Stop Camera';
+  } catch {
+    alert('Camera access denied.');
+    resetCamera();
+  }
+};
+
+/* =======================
+   EVENTS
+======================= */
+UI.dropZone.onclick = () => UI.fileInput.click();
+
+['dragover','dragleave','drop'].forEach(e =>
+  UI.dropZone.addEventListener(e, ev => ev.preventDefault())
+);
+
+UI.dropZone.addEventListener('dragover', () => UI.dropZone.classList.add('dragover'));
+UI.dropZone.addEventListener('dragleave', () => UI.dropZone.classList.remove('dragover'));
+
+UI.dropZone.addEventListener('drop', e => {
+  UI.dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) scanImageFile(e.dataTransfer.files[0]);
+});
+
+UI.fileInput.onchange = e => {
+  if (e.target.files[0]) scanImageFile(e.target.files[0]);
+};
+
+document.addEventListener('paste', e => {
+  const img = [...e.clipboardData.items].find(i => i.type.includes('image'));
+  if (img) scanImageFile(img.getAsFile());
+});
+
+UI.copyBtn.onclick = async () => {
+  await navigator.clipboard.writeText(UI.resultText.value);
+  UI.copyBtn.textContent = 'Copied!';
+  setTimeout(() => UI.copyBtn.textContent = 'Copy', 1200);
+};
+
+UI.openBtn.onclick = () => window.open(UI.resultText.value, '_blank');
+</script>
+
+</body>
+</html>
